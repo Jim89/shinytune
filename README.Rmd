@@ -40,7 +40,7 @@ library(tidymodels)
 library(tune)
 ```
 
-### Tune objects
+### Create the tune objects
 
 Let's just create the whole set of outputs for the Getting Started vignette.
 
@@ -104,6 +104,8 @@ set.seed(2453)
 cv_splits <- vfold_cv(ames_train, v = 10, strata = "Sale_Price")
 ```
 
+#### `tune_grid()`
+
 Then finally we'll do the tuning using `tune_grid()`:
 
 ```{r cache = TRUE}
@@ -116,3 +118,71 @@ ames_res <- tune_grid(
 ames_res
 ```
 
+Let's start out by looking at the class of those results:
+
+```{r}
+class(ames_res)
+```
+
+As detailed in the `?tune_grid` documentation, we have an updated resamples
+result, but with some new info an an extra class. But ultimately it's still a
+rectangle. Let's check the methods for the new class (the first one) to see what
+might be available "for free".
+
+```{r}
+methods(class = class(ames_res)[[1]])
+```
+
+So the only built-in method for the `_results` is `autoplot()`. So there's not a
+huge amount we get out using S3.
+
+What does the `autoplot()` look like?
+
+```{r}
+autoplot(ames_res)
+```
+
+We've got the performance metrics over our parameter value(s).
+
+Let's look at the extra columns in a bit more detail:
+
+```{r}
+ames_res$.metrics[[1]]
+```
+
+`.metrics`, contrains the error/summary metrics for each combination of the
+parameters in our grid. Per the docs, the model type informs the default choice
+of metric, but we can also specify what we're after with the `metrics` parameter
+in `tune_grid()`.
+
+The `.notes` column should contain extra warnings/errors that occurred during
+execution.
+
+```{r}
+map_dfr(ames_res$.notes, I)
+```
+
+We didn't have any here.
+
+The docs also show the `collect_metrics()` function for aggregating the error
+metrics over the resamples. We can get summary (mean) values per grid
+combination (the default):
+
+```{r}
+collect_metrics(ames_res)
+```
+
+Or not, in which case we get the exact metrics from each fold (maybe useful if
+we want to compute our own summaries).
+
+```{r}
+collect_metrics(ames_res, FALSE)
+```
+
+The documentation then uses these result to plot/calcualte bespoke summaries to
+inform modelling decisions, and the use of `tune` or other `tidymodels`
+functions/packages seems to end.
+
+In any case, the output seems reasonably simple: `tune_grid()` will return a set
+of metrics (that may be customised via the `metrics`) argument for each
+combination in the grid.
