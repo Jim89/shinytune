@@ -21,10 +21,12 @@ The goal of shinytune is to make it easy to explore `tune` objects, similar to
 
 To do this I need to:
 
-* [ ] Figure out exactly what `tune` is producing
-* [ ] Think about some sensible summaries/visualisations/explorations that could
+* ~~Figure out exactly what `tune` is producing~~
+* Figure out how to deal with `tune_` outputs which contain the (optional)
+`.predictions` and/or `.extracts` information
+* Think about some sensible summaries/visualisations/explorations that could
 be applied to that
-* [ ] (Optionally) Compare to `shinystan` for reference (I don't want to anchor
+* Compare to `shinystan` for reference (I don't want to anchor
 too strongly to it, though)
 
 ## Exploring `tune`
@@ -62,8 +64,8 @@ Then the baseline recipe
 ```{r}
 ames_rec <- recipe(Sale_Price ~ Longitude + Latitude, data = ames_train) %>% 
   step_log(Sale_Price, base = 10) %>% 
-  step_ns(Longitude, deg_free = tune("long df")) %>% 
-  step_ns(Latitude,  deg_free = tune("lat df"))
+  step_ns(Longitude, deg_free = tune("long_df")) %>% 
+  step_ns(Latitude,  deg_free = tune("lat_df"))
 
 ames_rec
 ```
@@ -74,8 +76,8 @@ Then update the parameters to use a better function with a wider range:
 ames_param <- ames_rec %>% 
   parameters() %>% 
   update(
-    `long df` = spline_degree(), 
-    `lat df` = spline_degree()
+    long_df = spline_degree(), 
+    lat_df = spline_degree()
   )
 
 ames_param
@@ -138,7 +140,7 @@ huge amount we get out using S3.
 
 What does the `autoplot()` look like?
 
-```{r}
+```{r tune-grid-autoplot}
 autoplot(ames_res)
 ```
 
@@ -186,3 +188,101 @@ functions/packages seems to end.
 In any case, the output seems reasonably simple: `tune_grid()` will return a set
 of metrics (that may be customised via the `metrics`) argument for each
 combination in the grid.
+
+#### `tune_bayes()`
+
+An alternative approach in the getting started document is to use Bayesian
+Optimisation to select the parameters.
+
+The actual model used in the docs (kNN) is more complex than the linear
+regression above, so let's stick with the simple case for now.
+
+First we set up the workflow:
+
+```{r}
+library(workflows)
+lm_wflow <- workflow() %>% 
+    add_model(lm_mod) %>% 
+    add_recipe(ames_rec)
+
+lm_wflow
+```
+
+Then add the parameters:
+
+```{r}
+lm_param <- parameters(lm_wflow)
+lm_param
+```
+
+Then we'll set up the Bayesian optimisation:
+
+```{r tune-bayes, cache = TRUE}
+ctrl <- control_bayes(verbose = TRUE)
+set.seed(8151)
+lm_search <- tune_bayes(
+    lm_wflow, 
+    resamples = cv_splits, 
+    initial = 5, # Initial results to compare against
+    iter = 20, # Max searchable iterations
+    param_info = lm_param, 
+    control = ctrl
+)
+```
+
+Let's have a look at the results:
+
+```{r}
+lm_search
+```
+
+This looks similar to the output from grid search, but there's a lot more of it,
+because we have results by fold by iteration (`.iter`).
+
+Is the class the same?
+
+```{r}
+class(lm_search) == class(ames_res)
+```
+
+Yes, identical.
+
+Let's try that same autoplot, then:
+
+```{r tune-bayes-autoplot}
+autoplot(lm_search)
+```
+
+We get something very similar, but with more data to show (as we have multiple
+iterations).
+
+And what about a single metrics object:
+
+```{r}
+lm_search$.metrics[[1]]
+```
+
+This is similar again, for each fold/resample in each iteration we get a set of
+metrics over a range of values of the parameters.
+
+And what about `collect_metrics()`?
+
+```{r}
+collect_metrics(lm_search)
+```
+
+Again, something very similar, although now we get additional values, again
+because of iterations (we get the average of the metric for each combination of
+parameters in each iteration):
+
+```{r}
+lm_search %>% 
+    collect_metrics() %>% 
+    arrange(.iter, long_df, lat_df) %>% 
+    filter(.metric == "rmse")
+```
+
+So, given the two main ways to `tune` a model, we can see we have very similar
+results. Next steps are to figure out the case where the `tune_` output contains
+`.predictions` and/or `.extracts` (which will be present if the relevant
+arguments are set in the `control_` functions used to control the search).
