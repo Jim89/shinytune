@@ -236,7 +236,141 @@ about a general framework.
 
 ##### Adding extractions
 
-Let's instead
+Let's instead use `control_grid()`'s `extract` argument. This is an "optional
+function with at least one argument that can be used to retain arbitrary objects
+from the model fit object, receipe, or other elements of the workflow".
+
+Continuing, the help file for `tune_bayesian()` notes that:
+
+> The control function contains an option (extract) that can be used to retain
+any model or recipe that was created within the resamples. This argument should
+be a function with a single argument. The value of the argument that is given to
+the function in each resample is a workflow object (see `workflows::workflow()`
+for more information). There are two helper functions that can be used to easily
+pull out the recipe (if any) and/or the model: `extract_recipe()` and
+`extract_model()`.
+
+The fact that this can be arbitrary may mean this is hard to include in anything
+like `shinytune` which should be _general_ and not too arbitrary, but let's
+explore nonetheless. First off we'll extract the model:
+
+```{r ames-res-mod, cache = TRUE}
+ames_res_mod <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = extract_model)
+)
+ames_res_mod
+```
+
+Let's look at the first extract:
+
+```{r}
+ames_res_mod$.extracts[[1]]
+```
+
+So for each set of parameters in the grid, we ahve the model that was fit. Let's
+look at the first one of _those_
+
+```{r}
+mod <- ames_res_mod$.extracts[[1]]$.extracts[[1]]
+summary(mod)
+```
+
+So we get back the actual model that was fit. This could be really powerful,
+allowing the user to explore individual models fit during the grid search. But
+that might be hard to generalise into `shinytune`, and might be better saved for
+bespoke work on the users part.
+
+Let's do the same thing and extract the recipe instead:
+
+```{r ames-res-rec, cache = TRUE}
+ames_res_rec <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = extract_recipe)
+)
+ames_res_rec
+```
+
+Then let's again look at the `.extracts`:
+
+```{r}
+res <- ames_res_rec$.extracts[[1]]$.extracts[[1]]
+res
+```
+
+So we get a _trained_ recipe back.
+
+This may be useful to some users, but again might be a little hard to generalise
+in something like `shinytune`, and I'm not sure exactly what the use would be in
+a general-purpose exploration tool.
+
+Finally, as we know the `extract` function is given a `workflow`, let's just
+return that.
+
+```{r ames-res-wf}
+ames_res_wf <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = function(x) I(x))    
+)
+ames_res_wf
+```
+
+Then look at the extracted info:
+
+```{r}
+wf <- ames_res_wf$.extracts[[1]]$.extracts[[1]]
+wf
+```
+
+What's in this workflow object (in addition to the trained recipe and the model itself, which we've already seen how to extract)?
+
+```{r}
+names(wf)
+```
+
+A few things, let's look at each.
+
+```{r}
+wf$pre
+```
+
+I'm not really sure what this is for the moment, but it looks like there's some
+pre-training information in there about the recipe, (some of) the transformed
+data, and the outcome variable.
+
+```{r}
+wf$fit
+```
+
+The `fit` object looks like it holds the `parsnip` model object that
+`extract_model()` would pull out.
+
+```{r}
+wf$post
+```
+
+Post looks like it probably gives the post-fitting items from the workflow
+(there are none here). [I 2x checked the `workflow` documentation, and it will,
+it's just that none of the post-processing steps are currently implemented.]
+
+Finally, we have trained, a simple logical indicating (I assume) if the workflow
+has been trained:
+
+```{r}
+wf$trained
+```
+
+Overall then, there's a fair bit that _could_ be done with the workflow object,
+so it might be hard to generalise that in `shinytune`.
 
 #### `tune_bayes()`
 

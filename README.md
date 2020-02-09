@@ -415,7 +415,384 @@ there if we’re thinking about a general framework.
 
 ##### Adding extractions
 
-Let’s instead
+Let’s instead use `control_grid()`’s `extract` argument. This is an
+“optional function with at least one argument that can be used to
+retain arbitrary objects from the model fit object, receipe, or other
+elements of the workflow”.
+
+Continuing, the help file for `tune_bayesian()` notes that:
+
+> The control function contains an option (extract) that can be used to
+> retain any model or recipe that was created within the resamples. This
+> argument should be a function with a single argument. The value of the
+> argument that is given to the function in each resample is a workflow
+> object (see `workflows::workflow()` for more information). There are
+> two helper functions that can be used to easily pull out the recipe
+> (if any) and/or the model: `extract_recipe()` and `extract_model()`.
+
+The fact that this can be arbitrary may mean this is hard to include in
+anything like `shinytune` which should be *general* and not too
+arbitrary, but let’s explore nonetheless. First off we’ll extract the
+model:
+
+``` r
+ames_res_mod <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = extract_model)
+)
+ames_res_mod
+#> #  10-fold cross-validation using stratification 
+#> # A tibble: 10 x 5
+#>    splits          id     .metrics          .notes         .extracts       
+#>  * <list>          <chr>  <list>            <list>         <list>          
+#>  1 <split [2K/221… Fold01 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  2 <split [2K/220… Fold02 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  3 <split [2K/220… Fold03 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  4 <split [2K/220… Fold04 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  5 <split [2K/220… Fold05 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  6 <split [2K/220… Fold06 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  7 <split [2K/220… Fold07 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  8 <split [2K/220… Fold08 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  9 <split [2K/220… Fold09 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#> 10 <split [2K/218… Fold10 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+```
+
+Let’s look at the first extract:
+
+``` r
+ames_res_mod$.extracts[[1]]
+#> # A tibble: 10 x 3
+#>    long_df lat_df .extracts
+#>      <int>  <int> <list>   
+#>  1       3      6 <lm>     
+#>  2      10     10 <lm>     
+#>  3       8      7 <lm>     
+#>  4       3     10 <lm>     
+#>  5       7     10 <lm>     
+#>  6       4      3 <lm>     
+#>  7       4      8 <lm>     
+#>  8       7      4 <lm>     
+#>  9       5      6 <lm>     
+#> 10      10      5 <lm>
+```
+
+So for each set of parameters in the grid, we ahve the model that was
+fit. Let’s look at the first one of *those*
+
+``` r
+mod <- ames_res_mod$.extracts[[1]]$.extracts[[1]]
+summary(mod)
+#> 
+#> Call:
+#> stats::lm(formula = formula, data = data)
+#> 
+#> Residuals:
+#>      Min       1Q   Median       3Q      Max 
+#> -0.97542 -0.08859 -0.00394  0.08497  0.66652 
+#> 
+#> Coefficients:
+#>                  Estimate Std. Error t value Pr(>|t|)    
+#> (Intercept)     5.3933304  0.0267454 201.655  < 2e-16 ***
+#> Longitude_ns_1 -0.2088617  0.0187321 -11.150  < 2e-16 ***
+#> Longitude_ns_2 -0.2472026  0.0403728  -6.123 1.11e-09 ***
+#> Longitude_ns_3 -0.1991015  0.0435626  -4.570 5.17e-06 ***
+#> Latitude_ns_1  -0.2118214  0.0223828  -9.464  < 2e-16 ***
+#> Latitude_ns_2  -0.1257666  0.0275295  -4.568 5.22e-06 ***
+#> Latitude_ns_3   0.0004299  0.0283317   0.015   0.9879    
+#> Latitude_ns_4   0.0421042  0.0236285   1.782   0.0749 .  
+#> Latitude_ns_5   0.0665391  0.0566813   1.174   0.2406    
+#> Latitude_ns_6   0.1453094  0.0197392   7.361 2.66e-13 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> Residual standard error: 0.1417 on 1968 degrees of freedom
+#> Multiple R-squared:  0.3675, Adjusted R-squared:  0.3646 
+#> F-statistic: 127.1 on 9 and 1968 DF,  p-value: < 2.2e-16
+```
+
+So we get back the actual model that was fit. This could be really
+powerful, allowing the user to explore individual models fit during the
+grid search. But that might be hard to generalise into `shinytune`, and
+might be better saved for bespoke work on the users part.
+
+Let’s do the same thing and extract the recipe instead:
+
+``` r
+ames_res_rec <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = extract_recipe)
+)
+ames_res_rec
+#> #  10-fold cross-validation using stratification 
+#> # A tibble: 10 x 5
+#>    splits          id     .metrics          .notes         .extracts       
+#>  * <list>          <chr>  <list>            <list>         <list>          
+#>  1 <split [2K/221… Fold01 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  2 <split [2K/220… Fold02 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  3 <split [2K/220… Fold03 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  4 <split [2K/220… Fold04 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  5 <split [2K/220… Fold05 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  6 <split [2K/220… Fold06 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  7 <split [2K/220… Fold07 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  8 <split [2K/220… Fold08 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  9 <split [2K/220… Fold09 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#> 10 <split [2K/218… Fold10 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+```
+
+Then let’s again look at the `.extracts`:
+
+``` r
+res <- ames_res_rec$.extracts[[1]]$.extracts[[1]]
+res
+#> Data Recipe
+#> 
+#> Inputs:
+#> 
+#>       role #variables
+#>    outcome          1
+#>  predictor          2
+#> 
+#> Training data contained 1978 data points and no missing data.
+#> 
+#> Operations:
+#> 
+#> Log transformation on Sale_Price [trained]
+#> Natural Splines on Longitude [trained]
+#> Natural Splines on Latitude [trained]
+```
+
+So we get a *trained* recipe back.
+
+This may be useful to some users, but again might be a little hard to
+generalise in something like `shinytune`, and I’m not sure exactly what
+the use would be in a general-purpose exploration tool.
+
+Finally, as we know the `extract` function is given a `workflow`, let’s
+just return that.
+
+``` r
+ames_res_wf <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(extract = function(x) I(x))    
+)
+ames_res_wf
+#> #  10-fold cross-validation using stratification 
+#> # A tibble: 10 x 5
+#>    splits          id     .metrics          .notes         .extracts       
+#>  * <list>          <chr>  <list>            <list>         <list>          
+#>  1 <split [2K/221… Fold01 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  2 <split [2K/220… Fold02 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  3 <split [2K/220… Fold03 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  4 <split [2K/220… Fold04 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  5 <split [2K/220… Fold05 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  6 <split [2K/220… Fold06 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  7 <split [2K/220… Fold07 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  8 <split [2K/220… Fold08 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#>  9 <split [2K/220… Fold09 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+#> 10 <split [2K/218… Fold10 <tibble [20 × 5]> <tibble [0 × … <tibble [10 × 3…
+```
+
+Then look at the extracted info:
+
+``` r
+wf <- ames_res_wf$.extracts[[1]]$.extracts[[1]]
+wf
+#> ══ Workflow ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+#> Preprocessor: Recipe
+#> Model: linear_reg()
+#> 
+#> ── Preprocessor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> 3 Recipe Steps
+#> 
+#> ● step_log()
+#> ● step_ns()
+#> ● step_ns()
+#> 
+#> ── Model ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> 
+#> Call:
+#> stats::lm(formula = formula, data = data)
+#> 
+#> Coefficients:
+#>    (Intercept)  Longitude_ns_1  Longitude_ns_2  Longitude_ns_3  
+#>      5.3933304      -0.2088617      -0.2472026      -0.1991015  
+#>  Latitude_ns_1   Latitude_ns_2   Latitude_ns_3   Latitude_ns_4  
+#>     -0.2118214      -0.1257666       0.0004299       0.0421042  
+#>  Latitude_ns_5   Latitude_ns_6  
+#>      0.0665391       0.1453094
+```
+
+What’s in this workflow object (in addition to the trained recipe and
+the model itself, which we’ve already seen how to extract)?
+
+``` r
+names(wf)
+#> [1] "pre"     "fit"     "post"    "trained"
+```
+
+A few things, let’s look at each.
+
+``` r
+wf$pre
+#> $actions
+#> $actions$recipe
+#> $recipe
+#> Data Recipe
+#> 
+#> Inputs:
+#> 
+#>       role #variables
+#>    outcome          1
+#>  predictor          2
+#> 
+#> Operations:
+#> 
+#> Log transformation on Sale_Price
+#> Natural Splines on Longitude
+#> Natural Splines on Latitude
+#> 
+#> $blueprint
+#> Recipe blueprint: 
+#>  
+#> # Predictors: 0 
+#>   # Outcomes: 0 
+#>    Intercept: FALSE 
+#> Novel Levels: FALSE 
+#> 
+#> attr(,"class")
+#> [1] "action_recipe" "action_pre"    "action"       
+#> 
+#> 
+#> $mold
+#> $mold$predictors
+#> # A tibble: 1,978 x 9
+#>    Longitude_ns_1 Longitude_ns_2 Longitude_ns_3 Latitude_ns_1 Latitude_ns_2
+#>             <dbl>          <dbl>          <dbl>         <dbl>         <dbl>
+#>  1          0.533          0.366        -0.0698             0      0.000812
+#>  2          0.533          0.358        -0.0375             0      0.00528 
+#>  3          0.268          0.513        -0.298              0      0       
+#>  4          0.268          0.512        -0.298              0      0       
+#>  5          0.376          0.467        -0.254              0      0       
+#>  6          0.376          0.468        -0.254              0      0       
+#>  7          0.394          0.459        -0.244              0      0       
+#>  8          0.265          0.514        -0.299              0      0       
+#>  9          0.274          0.510        -0.296              0      0       
+#> 10          0.360          0.475        -0.262              0      0       
+#> # … with 1,968 more rows, and 4 more variables: Latitude_ns_3 <dbl>,
+#> #   Latitude_ns_4 <dbl>, Latitude_ns_5 <dbl>, Latitude_ns_6 <dbl>
+#> 
+#> $mold$outcomes
+#> # A tibble: 1,978 x 1
+#>    Sale_Price
+#>         <dbl>
+#>  1       5.24
+#>  2       5.39
+#>  3       5.28
+#>  4       5.29
+#>  5       5.33
+#>  6       5.28
+#>  7       5.37
+#>  8       5.28
+#>  9       5.26
+#> 10       5.23
+#> # … with 1,968 more rows
+#> 
+#> $mold$blueprint
+#> Recipe blueprint: 
+#>  
+#> # Predictors: 2 
+#>   # Outcomes: 1 
+#>    Intercept: FALSE 
+#> Novel Levels: FALSE 
+#> 
+#> $mold$extras
+#> $mold$extras$roles
+#> NULL
+#> 
+#> 
+#> 
+#> attr(,"class")
+#> [1] "stage_pre" "stage"
+```
+
+I’m not really sure what this is for the moment, but it looks like
+there’s some pre-training information in there about the recipe, (some
+of) the transformed data, and the outcome variable.
+
+``` r
+wf$fit
+#> $actions
+#> $actions$model
+#> $spec
+#> Linear Regression Model Specification (regression)
+#> 
+#> Computational engine: lm 
+#> 
+#> 
+#> $formula
+#> NULL
+#> 
+#> attr(,"class")
+#> [1] "action_model" "action_fit"   "action"      
+#> 
+#> 
+#> $fit
+#> parsnip model object
+#> 
+#> Fit time:  1ms 
+#> 
+#> Call:
+#> stats::lm(formula = formula, data = data)
+#> 
+#> Coefficients:
+#>    (Intercept)  Longitude_ns_1  Longitude_ns_2  Longitude_ns_3  
+#>      5.3933304      -0.2088617      -0.2472026      -0.1991015  
+#>  Latitude_ns_1   Latitude_ns_2   Latitude_ns_3   Latitude_ns_4  
+#>     -0.2118214      -0.1257666       0.0004299       0.0421042  
+#>  Latitude_ns_5   Latitude_ns_6  
+#>      0.0665391       0.1453094  
+#> 
+#> 
+#> attr(,"class")
+#> [1] "stage_fit" "stage"
+```
+
+The `fit` object looks like it holds the `parsnip` model object that
+`extract_model()` would pull out.
+
+``` r
+wf$post
+#> $actions
+#> list()
+#> 
+#> attr(,"class")
+#> [1] "stage_post" "stage"
+```
+
+Post looks like it probably gives the post-fitting items from the
+workflow (there are none here). \[I 2x checked the `workflow`
+documentation, and it will, it’s just that none of the post-processing
+steps are currently implemented.\]
+
+Finally, we have trained, a simple logical indicating (I assume) if the
+workflow has been trained:
+
+``` r
+wf$trained
+#> [1] FALSE
+```
+
+Overall then, there’s a fair bit that *could* be done with the workflow
+object, so it might be hard to generalise that in `shinytune`.
 
 #### `tune_bayes()`
 
