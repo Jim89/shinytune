@@ -16,20 +16,28 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of shinytune is to ...
+The goal of shinytune is to make it easy to explore `tune` objects, similar to
+`shinystan`.
 
-What is special about using `README.Rmd` instead of just `README.md`? You can include R chunks like so:
+To do this I need to:
 
-```{r cars}
-summary(cars)
+* [ ] Figure out exactly what `tune` is producing
+* [ ] Think about some sensible summaries/visualisations/explorations that could
+be applied to that
+* [ ] (Optionally) Compare to `shinystan` for reference (I don't want to anchor
+too strongly to it, though)
+
+## Exploring `tune`
+
+Firstly, I need to figure out what  `tune` object actually contains.
+
+Let's create one following the Getting Started guide on
+the [tune
+website](https://tidymodels.github.io/tune/articles/getting_started.html).
+
+```{r}
+library(tidymodels)
+library(tune)
 ```
 
-You'll still need to render `README.Rmd` regularly, to keep `README.md` up-to-date.
 
-You can also embed plots, for example:
-
-```{r pressure, echo = FALSE}
-plot(pressure)
-```
-
-In that case, don't forget to commit and push the resulting figure files, so they display on GitHub!
