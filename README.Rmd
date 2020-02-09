@@ -85,14 +85,14 @@ ames_param
 
 Then we'll set up the (grid) search space of values for these parameters:
 
-```{r}
+```{r spline-grid}
 spline_grid <- grid_max_entropy(ames_param, size = 10)
 spline_grid
 ```
 
 Then our (linear) model:
 
-```{r}
+```{r lm-mod}
 lm_mod <- linear_reg() %>% 
     set_engine("lm")
 
@@ -101,7 +101,7 @@ lm_mod
 
 Then we'll set up the cross validation scheme to search over:
 
-```{r}
+```{r cv-splits}
 set.seed(2453)
 cv_splits <- vfold_cv(ames_train, v = 10, strata = "Sale_Price")
 ```
@@ -110,7 +110,7 @@ cv_splits <- vfold_cv(ames_train, v = 10, strata = "Sale_Price")
 
 Then finally we'll do the tuning using `tune_grid()`:
 
-```{r cache = TRUE}
+```{r tune-grid, cache = TRUE}
 ames_res <- tune_grid(
     ames_rec,
     model = lm_mod,
@@ -189,6 +189,55 @@ In any case, the output seems reasonably simple: `tune_grid()` will return a set
 of metrics (that may be customised via the `metrics`) argument for each
 combination in the grid.
 
+##### Adding predictions
+
+Let's also consider using `control_grid()` to add the `.predictions` data to the
+results of our tuning:
+
+```{r tune-grid-pred, cache = TRUE}
+ames_res_with_pred <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(save_pred = TRUE)
+)
+ames_res_with_pred
+```
+
+Let's look at one value of predictions:
+
+```{r}
+ames_res_with_pred$.predictions[[1]]
+```
+
+So we have the prediction across many rows of the data, based on our resamples?
+
+```{r}
+count(ames_res_with_pred$.predictions[[1]], long_df, lat_df)
+```
+
+Yes, for each evaluation/parameter set, we've got  the out-of-sample predictions
+(like the docs say, but it's nice to verify).
+
+Let's use the built in helper to get them, too:
+
+```{r}
+collect_predictions(ames_res_with_pred)
+```
+
+As expected, over our grid of 10 lat/long DF combinations, we get, for each
+resample, the out-of-sample predictions (so 10 values per observation in the
+validation set across each resample fold).
+
+Per the documentation, the column names may differ if we have a classification
+model (e.g. `.pred_class`), so we'll need to be careful there if we're thinking
+about a general framework.
+
+##### Adding extractions
+
+Let's instead
+
 #### `tune_bayes()`
 
 An alternative approach in the getting started document is to use Bayesian
@@ -250,7 +299,7 @@ Yes, identical.
 Let's try that same autoplot, then:
 
 ```{r tune-bayes-autoplot}
-autoplot(lm_search)
+autoplot(lm_search, "performance")
 ```
 
 We get something very similar, but with more data to show (as we have multiple
@@ -286,3 +335,4 @@ So, given the two main ways to `tune` a model, we can see we have very similar
 results. Next steps are to figure out the case where the `tune_` output contains
 `.predictions` and/or `.extracts` (which will be present if the relevant
 arguments are set in the `control_` functions used to control the search).
+

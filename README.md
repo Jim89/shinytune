@@ -312,6 +312,111 @@ In any case, the output seems reasonably simple: `tune_grid()` will
 return a set of metrics (that may be customised via the `metrics`)
 argument for each combination in the grid.
 
+##### Adding predictions
+
+Let’s also consider using `control_grid()` to add the `.predictions`
+data to the results of our tuning:
+
+``` r
+ames_res_with_pred <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid,
+    control = control_grid(save_pred = TRUE)
+)
+ames_res_with_pred
+#> #  10-fold cross-validation using stratification 
+#> # A tibble: 10 x 5
+#>    splits          id     .metrics        .notes         .predictions      
+#>  * <list>          <chr>  <list>          <list>         <list>            
+#>  1 <split [2K/221… Fold01 <tibble [20 × … <tibble [0 × … <tibble [2,210 × …
+#>  2 <split [2K/220… Fold02 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  3 <split [2K/220… Fold03 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  4 <split [2K/220… Fold04 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  5 <split [2K/220… Fold05 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  6 <split [2K/220… Fold06 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  7 <split [2K/220… Fold07 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  8 <split [2K/220… Fold08 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#>  9 <split [2K/220… Fold09 <tibble [20 × … <tibble [0 × … <tibble [2,200 × …
+#> 10 <split [2K/218… Fold10 <tibble [20 × … <tibble [0 × … <tibble [2,180 × …
+```
+
+Let’s look at one value of predictions:
+
+``` r
+ames_res_with_pred$.predictions[[1]]
+#> # A tibble: 2,210 x 5
+#>    .pred  .row long_df lat_df Sale_Price
+#>    <dbl> <int>   <int>  <int>      <dbl>
+#>  1  5.34     9       3      6       5.25
+#>  2  5.43    32       3      6       5.60
+#>  3  5.42    33       3      6       5.34
+#>  4  5.42    35       3      6       5.79
+#>  5  5.31    71       3      6       5.41
+#>  6  5.30    75       3      6       5.17
+#>  7  5.14    96       3      6       5.30
+#>  8  5.14   121       3      6       5.38
+#>  9  5.06   124       3      6       5.22
+#> 10  5.06   125       3      6       5.13
+#> # … with 2,200 more rows
+```
+
+So we have the prediction across many rows of the data, based on our
+resamples?
+
+``` r
+count(ames_res_with_pred$.predictions[[1]], long_df, lat_df)
+#> # A tibble: 10 x 3
+#>    long_df lat_df     n
+#>      <int>  <int> <int>
+#>  1       3      6   221
+#>  2       3     10   221
+#>  3       4      3   221
+#>  4       4      8   221
+#>  5       5      6   221
+#>  6       7      4   221
+#>  7       7     10   221
+#>  8       8      7   221
+#>  9      10      5   221
+#> 10      10     10   221
+```
+
+Yes, for each evaluation/parameter set, we’ve got the out-of-sample
+predictions (like the docs say, but it’s nice to verify).
+
+Let’s use the built in helper to get them, too:
+
+``` r
+collect_predictions(ames_res_with_pred)
+#> # A tibble: 21,990 x 6
+#>    id     .pred  .row long_df lat_df Sale_Price
+#>    <chr>  <dbl> <int>   <int>  <int>      <dbl>
+#>  1 Fold01  5.34     9       3      6       5.25
+#>  2 Fold01  5.43    32       3      6       5.60
+#>  3 Fold01  5.42    33       3      6       5.34
+#>  4 Fold01  5.42    35       3      6       5.79
+#>  5 Fold01  5.31    71       3      6       5.41
+#>  6 Fold01  5.30    75       3      6       5.17
+#>  7 Fold01  5.14    96       3      6       5.30
+#>  8 Fold01  5.14   121       3      6       5.38
+#>  9 Fold01  5.06   124       3      6       5.22
+#> 10 Fold01  5.06   125       3      6       5.13
+#> # … with 21,980 more rows
+```
+
+As expected, over our grid of 10 lat/long DF combinations, we get, for
+each resample, the out-of-sample predictions (so 10 values per
+observation in the validation set across each resample fold).
+
+Per the documentation, the column names may differ if we have a
+classification model (e.g. `.pred_class`), so we’ll need to be careful
+there if we’re thinking about a general framework.
+
+##### Adding extractions
+
+Let’s instead
+
 #### `tune_bayes()`
 
 An alternative approach in the getting started document is to use
@@ -607,7 +712,7 @@ Yes, identical.
 Let’s try that same autoplot, then:
 
 ``` r
-autoplot(lm_search)
+autoplot(lm_search, "performance")
 ```
 
 ![](README_files/figure-gfm/tune-bayes-autoplot-1.png)<!-- -->
