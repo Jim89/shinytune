@@ -40,4 +40,79 @@ library(tidymodels)
 library(tune)
 ```
 
+### Tune objects
+
+Let's just create the whole set of outputs for the Getting Started vignette.
+
+Firstly we'll set up the data:
+
+```{r}
+library(AmesHousing)
+
+ames <- make_ames()
+
+set.seed(4595)
+data_split <- initial_split(ames, strata = "Sale_Price")
+ames_train <- training(data_split)
+ames_test  <- testing(data_split)
+```
+
+Then the baseline recipe
+
+```{r}
+ames_rec <- recipe(Sale_Price ~ Longitude + Latitude, data = ames_train) %>% 
+  step_log(Sale_Price, base = 10) %>% 
+  step_ns(Longitude, deg_free = tune("long df")) %>% 
+  step_ns(Latitude,  deg_free = tune("lat df"))
+
+ames_rec
+```
+
+Then update the parameters to use a better function with a wider range: 
+
+```{r}
+ames_param <- ames_rec %>% 
+  parameters() %>% 
+  update(
+    `long df` = spline_degree(), 
+    `lat df` = spline_degree()
+  )
+
+ames_param
+```
+
+Then we'll set up the (grid) search space of values for these parameters:
+
+```{r}
+spline_grid <- grid_max_entropy(ames_param, size = 10)
+spline_grid
+```
+
+Then our (linear) model:
+
+```{r}
+lm_mod <- linear_reg() %>% 
+    set_engine("lm")
+
+lm_mod
+```
+
+Then we'll set up the cross validation scheme to search over:
+
+```{r}
+set.seed(2453)
+cv_splits <- vfold_cv(ames_train, v = 10, strata = "Sale_Price")
+```
+
+Then finally we'll do the tuning using `tune_grid()`:
+
+```{r cache = TRUE}
+ames_res <- tune_grid(
+    ames_rec,
+    model = lm_mod,
+    resamples = cv_splits,
+    grid = spline_grid
+)
+ames_res
+```
 
