@@ -29,14 +29,14 @@ website](https://tidymodels.github.io/tune/articles/getting_started.html).
 
 ``` r
 library(tidymodels)
-#> ── Attaching packages ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidymodels 0.0.3 ──
+#> ── Attaching packages ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidymodels 0.0.3 ──
 #> ✓ broom     0.5.2     ✓ purrr     0.3.3
 #> ✓ dials     0.0.4     ✓ recipes   0.1.9
 #> ✓ dplyr     0.8.4     ✓ rsample   0.0.5
 #> ✓ ggplot2   3.2.1     ✓ tibble    2.1.3
 #> ✓ infer     0.5.1     ✓ yardstick 0.0.5
 #> ✓ parsnip   0.0.5
-#> ── Conflicts ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidymodels_conflicts() ──
+#> ── Conflicts ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidymodels_conflicts() ──
 #> x purrr::discard()    masks scales::discard()
 #> x dplyr::filter()     masks stats::filter()
 #> x dplyr::lag()        masks stats::lag()
@@ -147,7 +147,7 @@ set.seed(2453)
 cv_splits <- vfold_cv(ames_train, v = 10, strata = "Sale_Price")
 ```
 
-#### `tune_grid()`
+### `tune_grid()`
 
 Then finally we’ll do the tuning using `tune_grid()`:
 
@@ -312,7 +312,7 @@ In any case, the output seems reasonably simple: `tune_grid()` will
 return a set of metrics (that may be customised via the `metrics`)
 argument for each combination in the grid.
 
-##### Adding predictions
+#### Adding predictions
 
 Let’s also consider using `control_grid()` to add the `.predictions`
 data to the results of our tuning:
@@ -413,7 +413,7 @@ Per the documentation, the column names may differ if we have a
 classification model (e.g. `.pred_class`), so we’ll need to be careful
 there if we’re thinking about a general framework.
 
-##### Adding extractions
+#### Adding extractions
 
 Let’s instead use `control_grid()`’s `extract` argument. This is an
 “optional function with at least one argument that can be used to
@@ -606,18 +606,18 @@ Then look at the extracted info:
 ``` r
 wf <- ames_res_wf$.extracts[[1]]$.extracts[[1]]
 wf
-#> ══ Workflow ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+#> ══ Workflow ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 #> Preprocessor: Recipe
 #> Model: linear_reg()
 #> 
-#> ── Preprocessor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> ── Preprocessor ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 #> 3 Recipe Steps
 #> 
 #> ● step_log()
 #> ● step_ns()
 #> ● step_ns()
 #> 
-#> ── Model ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> ── Model ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 #> 
 #> Call:
 #> stats::lm(formula = formula, data = data)
@@ -748,7 +748,7 @@ wf$fit
 #> $fit
 #> parsnip model object
 #> 
-#> Fit time:  1ms 
+#> Fit time:  2ms 
 #> 
 #> Call:
 #> stats::lm(formula = formula, data = data)
@@ -794,7 +794,7 @@ wf$trained
 Overall then, there’s a fair bit that *could* be done with the workflow
 object, so it might be hard to generalise that in `shinytune`.
 
-#### `tune_bayes()`
+### `tune_bayes()`
 
 An alternative approach in the getting started document is to use
 Bayesian Optimisation to select the parameters.
@@ -811,18 +811,18 @@ lm_wflow <- workflow() %>%
     add_recipe(ames_rec)
 
 lm_wflow
-#> ══ Workflow ═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+#> ══ Workflow ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 #> Preprocessor: Recipe
 #> Model: linear_reg()
 #> 
-#> ── Preprocessor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> ── Preprocessor ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 #> 3 Recipe Steps
 #> 
 #> ● step_log()
 #> ● step_ns()
 #> ● step_ns()
 #> 
-#> ── Model ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> ── Model ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 #> Linear Regression Model Specification (regression)
 #> 
 #> Computational engine: lm
@@ -1169,3 +1169,94 @@ similar results. Next steps are to figure out the case where the `tune_`
 output contains `.predictions` and/or `.extracts` (which will be present
 if the relevant arguments are set in the `control_` functions used to
 control the search).
+
+### `autoplot()` methods
+
+Let’s also look at the `autoplot()` methods for the `tune_` objects.
+
+The best place to start is the documentation:
+
+``` r
+?tune::autoplot.tune_results
+```
+
+We can see that their is a `type` argument, giving 3 different plots.
+`"marginals"` shows predictors vs. performance (useful). The latter two
+options are only available for `tune_bayes()` and are: `"parameters"`
+for the parameters vs. the iteration, and `"performance"` to show
+performance at each iteration.
+
+We can also set `metric`, chosing the metric to plot (presumably from
+the `metrics` argument in `tune_`) and the `width` to show the width of
+the confidence bands when `type` is `"performance"`.
+
+Let’s see those three plots:
+
+#### Marginals
+
+Let’s look at the marginals plot from the original grid search:
+
+``` r
+autoplot(ames_res)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-32-1.png)<!-- -->
+
+And the Bayesian search:
+
+``` r
+autoplot(lm_search)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-33-1.png)<!-- -->
+
+Two very similar plots, we just have the extra results (for iterations)
+in the Bayesian output.
+
+Let’s look at the other two plots for the Bayesian object
+
+``` r
+autoplot(lm_search, "parameters")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-34-1.png)<!-- -->
+
+The `"parameters"` plot could be useful to show how well the process
+has/hasn’t explored the potential parameter space.
+
+``` r
+autoplot(lm_search, "perf")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-35-1.png)<!-- -->
+
+The performance plot is useful, too. The width is just controlling the
+visual width of the error bars (i.e. the horizontal bit), rather than
+the width of the interval.
+
+``` r
+autoplot(lm_search, "perf", width = .25)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->
+
+So these plots look to be useful-ish, but some custom ones may be more
+useful.
+
+It’s also worth noting that per the documentation:
+
+> A single categorical tuning parameter is supported when other numeric
+> parameters are also in the results. Any number of numeric tuning
+> parameters can be used.
+
+Consulting the actual source code shows that for the marginal plot:
+
+  - More than 2 non-numeric parameters are not supported (`"Currently
+    cannot autoplot grids with 2+ non-numeric parameters."`), probably
+    due to dimensionality problems?
+  - *Only* non-numeric parameters is not supported: `"Currently cannot
+    autoplot grids with only non-numeric parameters."`, possibly due to
+    problems creating the plot.
+
+No similar restrictions look to be in place for the parameters and/or
+performance plots.
