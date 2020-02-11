@@ -748,7 +748,7 @@ wf$fit
 #> $fit
 #> parsnip model object
 #> 
-#> Fit time:  2ms 
+#> Fit time:  4ms 
 #> 
 #> Call:
 #> stats::lm(formula = formula, data = data)
@@ -1190,9 +1190,7 @@ We can also set `metric`, chosing the metric to plot (presumably from
 the `metrics` argument in `tune_`) and the `width` to show the width of
 the confidence bands when `type` is `"performance"`.
 
-Let’s see those three plots:
-
-#### Marginals
+Let’s see those three plots.
 
 Let’s look at the marginals plot from the original grid search:
 
@@ -1260,3 +1258,192 @@ Consulting the actual source code shows that for the marginal plot:
 
 No similar restrictions look to be in place for the parameters and/or
 performance plots.
+
+### Additional functions
+
+There are a few other built-in functions in `tune` that might be
+useful/serve as inspiration for `shinytune`.
+
+  - `last_fit()` and `fit_resamples()` might be useful in some cases
+    (e.g. for interactive re-tuning?)
+  - `show_best()` and `select_best()` might be useful to grab the best
+    parameter combinations
+  - the `select_by*()` functions can analyse the output of `tune_()`
+    functions
+  - `finalize_()` functions for updating the model/workflow/recipe from
+    the `tune_()` output
+
+#### `select_` and `show`
+
+Let’s look at the `show_` and `select_` functions first. We’ll look at
+using them on the output of `tune_grid()` and `tune_bayes()`
+
+We just need to select the (error) metric to measure by:
+
+``` r
+show_best(ames_res, "rmse")
+#> Warning: Did you mean to maximize rmse?
+#> # A tibble: 5 x 7
+#>   long_df lat_df .metric .estimator  mean     n std_err
+#>     <int>  <int> <chr>   <chr>      <dbl> <int>   <dbl>
+#> 1       4      3 rmse    standard   0.143    10 0.00231
+#> 2       3      6 rmse    standard   0.142    10 0.00216
+#> 3       7      4 rmse    standard   0.140    10 0.00221
+#> 4       5      6 rmse    standard   0.139    10 0.00216
+#> 5      10      5 rmse    standard   0.137    10 0.00228
+```
+
+``` r
+show_best(lm_search, "rmse")
+#> Warning: Did you mean to maximize rmse?
+#> # A tibble: 5 x 8
+#>   long_df lat_df .iter .metric .estimator  mean     n std_err
+#>     <int>  <int> <dbl> <chr>   <chr>      <dbl> <int>   <dbl>
+#> 1       1      1     9 rmse    standard   0.163    10 0.00229
+#> 2       9      1     4 rmse    standard   0.144    10 0.00248
+#> 3       1      5    10 rmse    standard   0.143    10 0.00222
+#> 4       4      3     0 rmse    standard   0.143    10 0.00231
+#> 5      15      1     2 rmse    standard   0.142    10 0.00245
+```
+
+`show_best()` shows the top `n` best models, whilst `select_best()`
+extracts the best record for a given metric (whether we want that metric
+minimised or maximised).
+
+``` r
+select_best(ames_res, "rmse", maximize = FALSE)
+#> # A tibble: 1 x 2
+#>   long_df lat_df
+#>     <int>  <int>
+#> 1      10     10
+```
+
+``` r
+select_best(lm_search, "rmse", FALSE)
+#> # A tibble: 1 x 2
+#>   long_df lat_df
+#>     <int>  <int>
+#> 1      15     15
+```
+
+In both cases we just get back the parameter values.
+
+Let’s also explore the `select_by_` functions.
+
+Here, we need to provide additional sorting criteria to penalise more
+complex models, as this seeks to provide the simplest model that’s
+within a certain percentage-loss from the best
+one.
+
+``` r
+select_by_pct_loss(ames_res, long_df, lat_df, metric = "rmse", maximize = FALSE)
+#> # A tibble: 1 x 9
+#>   long_df lat_df .metric .estimator  mean     n std_err .best .loss
+#>     <int>  <int> <chr>   <chr>      <dbl> <int>   <dbl> <dbl> <dbl>
+#> 1       7     10 rmse    standard   0.133    10 0.00236 0.131  1.58
+```
+
+The `limit` parameter let’s us control the percentage point difference
+in loss we’re willing to
+tolerate.
+
+``` r
+select_by_one_std_err(ames_res, long_df, lat_df, metric = "rmse", maximize = FALSE)
+#> # A tibble: 1 x 9
+#>   long_df lat_df .metric .estimator  mean     n std_err .best .bound
+#>     <int>  <int> <chr>   <chr>      <dbl> <int>   <dbl> <dbl>  <dbl>
+#> 1       7     10 rmse    standard   0.133    10 0.00236 0.131  0.134
+```
+
+All 4 of these functions feel like they would be useful to enable
+interactive exploration of the results in `shinytune`.
+
+#### `finalize_` functions
+
+Let’s also look at the `finalize_` functions, which need a recipe,
+model, or workflow, and an output from `select_best()` (or similar) that
+contain the parameters in the model/workflow/recipe that should be
+updated/finalised.
+
+E.g.
+
+``` r
+finalize_recipe(ames_rec, select_best(ames_res, "rmse", FALSE))
+#> Data Recipe
+#> 
+#> Inputs:
+#> 
+#>       role #variables
+#>    outcome          1
+#>  predictor          2
+#> 
+#> Operations:
+#> 
+#> Log transformation on Sale_Price
+#> Natural Splines on Longitude
+#> Natural Splines on Latitude
+```
+
+``` r
+finalize_workflow(lm_wflow, select_best(lm_search, "rmse", F))
+#> ══ Workflow ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+#> Preprocessor: Recipe
+#> Model: linear_reg()
+#> 
+#> ── Preprocessor ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> 3 Recipe Steps
+#> 
+#> ● step_log()
+#> ● step_ns()
+#> ● step_ns()
+#> 
+#> ── Model ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#> Linear Regression Model Specification (regression)
+#> 
+#> Computational engine: lm
+```
+
+These may be less useful for `shinytune` in the first-instance, as they
+would require `shinytune` to also accept the model/recipe/workflow that
+`tune_` operated on.
+
+#### `last_fit()` and `fit_resamples()`
+
+`last_fit()` is only useful once we have finalised a
+model.
+
+E.g.
+
+``` r
+final_wf <- finalize_workflow(lm_wflow, select_best(lm_search, "rmse", F))
+last_fit(final_wf, split = data_split)
+#> # # Monte Carlo cross-validation (0.75/0.25) with 1 resamples  
+#> # A tibble: 1 x 6
+#>   splits       id          .metrics     .notes     .predictions   .workflow
+#> * <list>       <chr>       <list>       <list>     <list>         <list>   
+#> 1 <split [2.2… train/test… <tibble [2 … <tibble [… <tibble [731 … <workflo…
+```
+
+Different `.metrics` can be calculated (again using a
+`yardstick::metric_set()`), as needed.
+
+`fit_resamples()` doesn’t do any tuning, but will (re)fit a model across
+many resamples, so could be useful to let the user tweak parameters in
+an interface and get the results back? (Probaby overly complicated
+actually).
+
+But this could be useful for getting an estimate of variability in
+performance over resamples from the final model?
+
+``` r
+final_wf %>% 
+  fit_resamples(cv_splits) %>% 
+  collect_metrics(summarize = FALSE) %>% 
+  filter(.metric == "rmse") %>% 
+  qplot(.estimate, data = .)
+#> `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+```
+
+![](README_files/figure-gfm/unnamed-chunk-46-1.png)<!-- -->
+
+Ish/yes/no. Probably these should be considered out of scope for now.
